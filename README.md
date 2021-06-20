@@ -9,3 +9,8 @@ The solution involves giving a score to each transaction. We see that a transact
 
 The formula for the score of a transaction is as follows:\
 <img src="https://render.githubusercontent.com/render/math?math=\text{score} = \frac{\frac{\text{fee}}{\text{weight}}%2B \text{scores of parents}}{\text{no.of parents} %2B 1}">
+
+To run the code, run the following in you command line
+```
+python3 main.py
+```

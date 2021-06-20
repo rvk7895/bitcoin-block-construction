@@ -1,18 +1,14 @@
 import csv
 import json
-import queue
-from pprint import pprint
 from operator import itemgetter
 
 data = {}
-priority_queue = queue.PriorityQueue()
 blocks_fee = 0
 blocks_weight = 0
-blocks = {}
 processed_transactions = []
-transactions_rejected = {}
 MAX_WEIGHT = 4000000
 final_transactions = []
+final_transactions_deets = {}
 
 with open("./mempool.csv") as f:
     line_count = 0
@@ -27,9 +23,10 @@ with open("./mempool.csv") as f:
                 data[line[0]]["parents"] = []
         line_count += 1
 
-# score of a transaction = fee/weight + scores of parents
 
-
+'''
+score of a transaction = (fee/weight + scores of parents)/(number of parents + 1)
+'''
 def calculate_score(tx_id):
     score = float(data[tx_id]["fee"]) / data[tx_id]["weight"]
     weight = data[tx_id]["weight"]
@@ -43,7 +40,7 @@ def calculate_score(tx_id):
         weight += parent_weight
         fee += parent_fee
 
-    return score, weight, fee
+    return score/(len(data[tx_id]["parents"])+1), weight, fee
 
 
 for tx_id in data.keys():
@@ -62,30 +59,42 @@ for tx_id in data.keys():
     processed_transactions.append(processed_transaction.copy())
 
 sorted_processed_transactions = sorted(
-    processed_transactions, key=lambda i: i["score"])
+    processed_transactions, key=lambda i: i["score"], reverse=True)
+
+with open("./sorted_transactions.json","w") as f:
+    json.dump({
+        "processed_transactions":sorted_processed_transactions
+    },f)
 
 
 def include_parent_transaction(tx_id):
     for parent_tx_id in data[tx_id]["parents"]:
         if not data[parent_tx_id]["included"]:
             data[parent_tx_id]["included"] = True
-            final_transactions.append(parent_tx_id)
             include_parent_transaction(parent_tx_id)
+            final_transactions.append(parent_tx_id)
     return
 
 
 for transaction in sorted_processed_transactions:
     tx_id, score = itemgetter('tx_id', 'score')(transaction)
-    if (blocks_weight + data[tx_id]["total_weight"]) < MAX_WEIGHT and not data[tx_id]["included"]:
+    if ((blocks_weight + data[tx_id]["total_weight"]) < MAX_WEIGHT) and (not data[tx_id]["included"]):
+        blocks_fee += data[tx_id]["total_fee"]
         blocks_weight += data[tx_id]["total_weight"]
-        final_transactions.append(tx_id)
         data[tx_id]["included"] = True
         include_parent_transaction(tx_id)
+        final_transactions.append(tx_id)
 
 file = open('block.txt', 'w')
 for transaction in final_transactions:
     file.write(transaction+"\n")
+    final_transactions_deets[transaction]=data[transaction]
 file.close()
+
+with open('./final_transaction_deets.json','w') as f:
+    json.dump(final_transactions_deets,f)
+
+print(f'Total Fee: {blocks_fee}\nTotal Weight = {blocks_weight}')
 
 # with open('./processed_transactions.json','w') as f:
 #     json.dump(data, f)
